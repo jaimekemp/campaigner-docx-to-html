@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Campaigner Email Body Converter</title>
 
-  <!-- Custom Favicon Links -->
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="favicon.png" />
 
@@ -24,11 +23,10 @@
       font-size: 20px;
     }
     
-    /* Upload Drop Zone */
     .drop-zone {
       border: 2px dashed #94a3b8;
       border-radius: 8px;
-      padding: 32px 20px;
+      padding: 36px 20px;
       text-align: center;
       background: #f1f5f9;
       cursor: pointer;
@@ -37,15 +35,19 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 8px;
+      user-select: none;
     }
-    .drop-zone:hover { 
+    .drop-zone:hover, .drop-zone.dragover { 
       border-color: #CC0633; 
       background: #fef2f2;
     }
+    .drop-zone * {
+      pointer-events: none;
+    }
     .drop-zone svg {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       fill: none;
       stroke: #64748b;
       stroke-width: 2;
@@ -53,10 +55,12 @@
       stroke-linejoin: round;
       transition: stroke 0.2s;
     }
-    .drop-zone:hover svg { stroke: #CC0633; }
+    .drop-zone:hover svg, .drop-zone.dragover svg { 
+      stroke: #CC0633; 
+    }
     .drop-zone-text {
       margin: 0;
-      font-size: 14px;
+      font-size: 15px;
       color: #334155;
     }
     .drop-zone-subtext {
@@ -65,14 +69,12 @@
       color: #64748b;
     }
 
-    /* Controls & Global Action Bar */
     .controls {
       margin-top: 16px;
       display: flex;
       gap: 10px;
     }
 
-    /* Buttons */
     button {
       border: none;
       border-radius: 4px;
@@ -110,7 +112,6 @@
       border-color: #94a3b8;
     }
 
-    /* Metadata Panel (Subject & Preheader) */
     .metadata-panel {
       margin-top: 18px;
       background: #ffffff;
@@ -152,7 +153,6 @@
       background: #ffffff;
     }
 
-    /* Output Area */
     .output-wrapper {
       margin-top: 18px;
     }
@@ -171,7 +171,7 @@
     }
     textarea {
       width: 100%;
-      height: 400px;
+      height: 480px;
       font-family: Menlo, Monaco, Consolas, monospace;
       font-size: 13px;
       padding: 14px;
@@ -200,15 +200,15 @@
       <line x1="12" y1="3" x2="12" y2="15" />
     </svg>
     <p class="drop-zone-text">Drag and drop your <strong>.docx</strong> file here, or click to browse</p>
-    <p class="drop-zone-subtext">Automatically extracts subject line, preheader, and builds Campaigner HTML</p>
-    <input type="file" id="file-input" accept=".docx" style="display: none;" />
+    <p class="drop-zone-subtext">Automatically extracts metadata, formats buttons, notes, and builds clean Campaigner HTML</p>
   </div>
+
+  <input type="file" id="file-input" accept=".docx" style="display: none;" />
 
   <div class="controls">
     <button class="btn-secondary" id="reset-btn">Reset All</button>
   </div>
 
-  <!-- Metadata Extraction Panel -->
   <div class="metadata-panel">
     <div class="meta-row">
       <label class="meta-label" for="subject-field">Subject Line</label>
@@ -226,7 +226,6 @@
     </div>
   </div>
 
-  <!-- Main HTML Output Area -->
   <div class="output-wrapper">
     <div class="output-bar">
       <span class="output-header">Target &lt;td&gt; HTML Output</span>
@@ -247,27 +246,39 @@
     const copySubjectBtn = document.getElementById("copy-subject-btn");
     const copyPreheaderBtn = document.getElementById("copy-preheader-btn");
 
+    window.addEventListener("dragover", (e) => e.preventDefault());
+    window.addEventListener("drop", (e) => e.preventDefault());
+
     dropZone.addEventListener("click", () => fileInput.click());
+
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropZone.style.borderColor = "#CC0633";
-      dropZone.style.background = "#fef2f2";
-    });
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.style.borderColor = "";
-      dropZone.style.background = "";
-    });
-    dropZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = "";
-      dropZone.style.background = "";
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener("change", (e) => {
-      if (e.target.files.length) handleFile(e.target.files[0]);
+      e.stopPropagation();
+      dropZone.classList.add("dragover");
     });
 
-    // Reset handler
+    dropZone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove("dragover");
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove("dragover");
+      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+        fileInput.value = "";
+      }
+    });
+
     resetBtn.addEventListener("click", () => {
       output.value = "";
       subjectField.value = "";
@@ -275,7 +286,6 @@
       fileInput.value = "";
     });
 
-    // Copy helper with feedback
     function triggerCopy(element, button, originalText) {
       if (!element.value) return;
       element.select();
@@ -289,14 +299,36 @@
     copyPreheaderBtn.addEventListener("click", () => triggerCopy(preheaderField, copyPreheaderBtn, "Copy"));
 
     function handleFile(file) {
-      if (!file.name.endsWith(".docx")) {
-        alert("Please upload a .docx file.");
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".docx")) {
+        alert("Please upload a valid .docx file.");
         return;
       }
+      if (typeof mammoth === "undefined") {
+        alert("Mammoth library is still loading. Please check internet connection.");
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = function(event) {
         const options = {
           styleMap: [
+            "p[style-name='Button'] => p.btn-source:fresh",
+            "p[style-name='BUTTON'] => p.btn-source:fresh",
+            "p[style-name='button'] => p.btn-source:fresh",
+            "p[style-name='CTA Button'] => p.btn-source:fresh",
+            "p[style-name='cta button'] => p.btn-source:fresh",
+            "p[style-name='Small Note'] => p.smallnote:fresh",
+            "p[style-name='small note'] => p.smallnote:fresh",
+            "p[style-name='Small note'] => p.smallnote:fresh",
+            "p[style-name='Event Block'] => p.event-block:fresh",
+            "p[style-name='event block'] => p.event-block:fresh",
+            "p[style-name='Course Block'] => p.event-block:fresh",
+            "p[style-name='course block'] => p.event-block:fresh",
+            "p[style-name='Heading 2'] => h2:fresh",
+            "p[style-name='heading 2'] => h2:fresh",
+            "p[style-name='Heading 1'] => h2:fresh",
+            "p[style-name='heading 1'] => h2:fresh",
             "r[color='c00000'] => h2",
             "r[color='cc0633'] => h2",
             "r[color='a6192e'] => h2",
@@ -304,11 +336,147 @@
             "r[color='red'] => h2"
           ]
         };
+
         mammoth.convertToHtml({ arrayBuffer: event.target.result }, options)
           .then(buildCampaignerBody)
           .catch(err => alert("Parsing error: " + err.message));
       };
       reader.readAsArrayBuffer(file);
+    }
+
+    function convertBracketLinks(html) {
+      if (!html) return "";
+      return html.replace(/\[\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]/gi, (match, labelRaw, targetRaw) => {
+        if (/^\s*button\s*:/i.test(labelRaw)) return match;
+
+        const cleanLabel = labelRaw.replace(/<[^>]+>/g, "").trim();
+        let href = targetRaw.trim();
+
+        const aMatch = targetRaw.match(/href=["']([^"']+)["']/i);
+        if (aMatch) {
+          href = aMatch[1].trim();
+        } else {
+          href = targetRaw.replace(/<[^>]+>/g, "").trim();
+        }
+
+        if (!href) href = "#";
+        return '<a href="' + href + '">' + cleanLabel + '</a>';
+      });
+    }
+
+    function parseButtonElement(el) {
+      const text = el.textContent.trim();
+      const inner = el.innerHTML.trim();
+
+      const isBtnClass = el.classList.contains("btn-source") || el.classList.contains("btn");
+      const isBtnTag = /\[\s*button\s*:/i.test(text) || /^button\s*:/i.test(text) || /\[button\]/i.test(text);
+
+      if (!isBtnClass && !isBtnTag) {
+        return null;
+      }
+
+      let label = "";
+      let href = "https://www.sfu.ca/continuing-studies.html";
+
+      if (text.includes("|")) {
+        const parts = text.split("|");
+        label = parts[0];
+
+        const anchor = el.querySelector("a");
+        if (anchor && anchor.getAttribute("href")) {
+          href = anchor.getAttribute("href").trim();
+        } else {
+          href = parts.slice(1).join("|");
+        }
+      } else {
+        const anchor = el.querySelector("a");
+        if (anchor && anchor.getAttribute("href")) {
+          href = anchor.getAttribute("href").trim();
+          label = anchor.textContent;
+        } else {
+          label = text;
+        }
+      }
+
+      href = href.replace(/<[^>]+>/g, "").replace(/^[\[\s]+|[\]\s]+$/g, "").trim();
+      if (!href) href = "https://www.sfu.ca/continuing-studies.html";
+
+      label = label.replace(/<[^>]+>/g, "");
+      label = label.replace(/^[\[\s]+|[\]\s]+$/g, "").trim();
+      label = label.replace(/^button\s*:\s*/i, "").trim();
+      label = label.replace(/^[\[\s]+|[\]\s]+$/g, "").trim();
+
+      if (!label) label = "View details";
+
+      let preceding = "";
+      if (isBtnTag && !isBtnClass) {
+        let cleaned = inner
+          .replace(/\[\s*button[\s\S]*?\]/gi, "")
+          .replace(/(<br\s*\/?>\s*)+$/gi, "")
+          .trim();
+        if (cleaned) preceding = cleaned;
+      }
+
+      return { label: label, href: href, preceding: preceding };
+    }
+
+    function formatEventBlock(innerHtml) {
+      let cleaned = innerHtml
+        .replace(/<strong([^>]*)>([\s\S]*?)<br\s*\/?>([\s\S]*?)<\/strong>/gi, "<strong$1>$2</strong><br /><strong$1>$3</strong>")
+        .replace(/<strong>\s*<\/strong>/gi, "");
+
+      const lines = cleaned.split(/<br\s*\/?>/i);
+      if (!lines.length) return "";
+
+      let line0 = lines[0].trim();
+      const bracketMatch = line0.match(/\[\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]/i);
+
+      if (bracketMatch) {
+        const title = bracketMatch[1].replace(/<[^>]+>/g, "").trim();
+        let target = bracketMatch[2].trim();
+        let url = target;
+
+        const aMatch = target.match(/href=["']([^"']+)["']/i);
+        if (aMatch) {
+          url = aMatch[1].trim();
+        } else {
+          url = target.replace(/<[^>]+>/g, "").trim();
+        }
+        if (!url) url = "#";
+
+        line0 = '<a href="' + url + '"><strong>' + title + '</strong></a>';
+      } else if (line0.includes("<a ") && !line0.includes("<strong>")) {
+        line0 = line0.replace(/^(<a[^>]*>)(.*?)(<\/a>)/i, "$1<strong>$2</strong>$3");
+      } else if (!line0.startsWith("<strong>") && !line0.startsWith("<a")) {
+        line0 = "<strong>" + line0 + "</strong>";
+      }
+      lines[0] = line0;
+
+      for (let i = 1; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) continue;
+
+        line = line.replace(/\[\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]/gi, (match, labelRaw, targetRaw) => {
+          const name = labelRaw.replace(/<[^>]+>/g, "").trim();
+          let href = targetRaw.trim();
+          const aMatch = targetRaw.match(/href=["']([^"']+)["']/i);
+          if (aMatch) {
+            href = aMatch[1].trim();
+          } else {
+            href = targetRaw.replace(/<[^>]+>/g, "").trim();
+          }
+          if (!href) href = "#";
+          return '<a href="' + href + '"><strong>' + name + '</strong></a>';
+        });
+
+        if (/instructors?:/i.test(line) && line.includes("<a ") && !line.includes("<strong>")) {
+          line = line.replace(/(instructors?:\s*<a[^>]*>)(.*?)(<\/a>)/gi, "$1<strong>$2</strong>$3");
+        }
+
+        lines[i] = line;
+      }
+
+      return lines.filter(l => l).join("<br />\n");
     }
 
     function buildCampaignerBody(result) {
@@ -324,14 +492,29 @@
       const parser = new DOMParser();
       const doc = parser.parseFromString(rawHtml, "text/html");
 
-      doc.querySelectorAll("ul").forEach(ul => {
-        const listItems = Array.from(ul.querySelectorAll("li"));
-        listItems.forEach(li => {
-          const p = doc.createElement("p");
-          p.innerHTML = li.innerHTML;
-          ul.parentNode.insertBefore(p, ul);
+      let extractedSubject = "";
+      let extractedPreheader = "";
+
+      doc.querySelectorAll("table").forEach(table => {
+        let isMetaTable = false;
+        const rows = Array.from(table.querySelectorAll("tr"));
+        rows.forEach(row => {
+          const cells = Array.from(row.querySelectorAll("td, th"));
+          if (cells.length >= 2) {
+            const label = cells[0].textContent.replace(/\s+/g, " ").trim().toLowerCase();
+            const val = cells[1].textContent.replace(/\s+/g, " ").trim();
+            if (label.includes("subject")) {
+              extractedSubject = val;
+              isMetaTable = true;
+            } else if (label.includes("preheader")) {
+              extractedPreheader = val;
+              isMetaTable = true;
+            } else if (label.includes("field")) {
+              isMetaTable = true;
+            }
+          }
         });
-        ul.remove();
+        if (isMetaTable) table.remove();
       });
 
       const rawElements = Array.from(doc.body.children);
@@ -340,48 +523,43 @@
       let customGreeting = "";
       let customSignature = [];
 
-      let extractedSubject = "";
-      let extractedPreheader = "";
-
       const isDateOrTime = (str) => {
         return /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}:\d{2})\b/i.test(str.trim().toLowerCase());
       };
 
-      // 1. Separate metadata (Subject/Preheader), footnotes, and content
       for (let i = 0; i < rawElements.length; i++) {
         const el = rawElements[i];
         let text = el.textContent.replace(/\s+/g, " ").trim();
         if (!text) continue;
 
-        // Extract Subject Line
+        if (text.includes("Everything below this divider") || text.includes("Quick Formatting Guide") || text === "Field Value") {
+          continue;
+        }
+
         if (/^subject(\s*line)?:\s*/i.test(text)) {
-          extractedSubject = text.replace(/^subject(\s*line)?:\s*/i, "").trim();
+          if (!extractedSubject) extractedSubject = text.replace(/^subject(\s*line)?:\s*/i, "").trim();
           continue;
         }
 
-        // Extract Preheader
         if (/^preheader:\s*/i.test(text)) {
-          extractedPreheader = text.replace(/^preheader:\s*/i, "").trim();
+          if (!extractedPreheader) extractedPreheader = text.replace(/^preheader:\s*/i, "").trim();
           continue;
         }
 
-        // Skip internal tracking tags
         if (/^campaigner-[a-z0-9-]+$/i.test(text) || /^promote\s+[a-z0-9\s]+/i.test(text)) {
           continue;
         }
 
-        // Sign-off capture
         if (/^(warm|kind|best)\s+(regards|wishes),?\s*$/i.test(text)) {
           customGreeting = text.replace(/,?\s*$/, ",");
           continue;
         }
 
-        if (customGreeting && (text.includes("@sfu.ca") || text.toLowerCase().includes("studio") || text.toLowerCase().includes("continuing studies"))) {
-          customSignature.push(el.innerHTML.replace(/\s+/g, " ").trim());
+        if (customGreeting && (text.includes("@sfu.ca") || text.toLowerCase().includes("continuing studies") || text.toLowerCase().includes("firstname"))) {
+          customSignature.push(convertBracketLinks(el.innerHTML.replace(/\s+/g, " ").trim()));
           continue;
         }
 
-        // Footnotes
         if (/^(\[\d+\]|p\.\s*\d+)/i.test(text) || el.id?.includes("footnote") || el.querySelector("li[id^='footnote']")) {
           footnoteNodes.push(el);
           continue;
@@ -390,11 +568,9 @@
         cleanNodes.push(el);
       }
 
-      // Populate metadata UI fields
       subjectField.value = extractedSubject;
       preheaderField.value = extractedPreheader;
 
-      // 2. Merge sub-detail rows
       const mergedNodes = [];
       for (let i = 0; i < cleanNodes.length; i++) {
         const el = cleanNodes[i];
@@ -404,10 +580,11 @@
           /^(starts|begins)\s+/i.test(text) ||
           /^instructors?:/i.test(text) ||
           /^topic:\s*/i.test(text) ||
+          isDateOrTime(text) ||
           /^\d{1,2}(:\d{2})?\s*(a\.m\.|p\.m\.|am|pm)/i.test(text) ||
           /^find us on/i.test(text);
 
-        if (isSubDetail && mergedNodes.length > 0) {
+        if (isSubDetail && mergedNodes.length > 0 && mergedNodes[mergedNodes.length - 1].tagName !== "UL") {
           const prev = mergedNodes[mergedNodes.length - 1];
           prev.innerHTML = prev.innerHTML.trim() + "<br />\n" + el.innerHTML.trim();
         } else {
@@ -415,10 +592,21 @@
         }
       }
 
-      // 3. Assemble target Campaigner body
-      let bodyHtml = `<p>Hi [Contact.First Name],</p>\n\n`;
+      let bodyHtml = "<p>Hi [Contact.First Name],</p>\n\n";
 
       mergedNodes.forEach(el => {
+        if (el.tagName === "UL") {
+          const listItems = Array.from(el.querySelectorAll("li"));
+          if (listItems.length > 0) {
+            bodyHtml += "<ul>\n";
+            listItems.forEach(li => {
+              bodyHtml += "\t<li>" + convertBracketLinks(li.innerHTML.trim()) + "</li>\n";
+            });
+            bodyHtml += "</ul>\n\n";
+          }
+          return;
+        }
+
         let text = el.textContent.replace(/\s+/g, " ").trim();
         let inner = el.innerHTML.replace(/\s+/g, " ").trim();
 
@@ -428,72 +616,67 @@
         if (!inner) return;
 
         // Button handler
-        if (/\[button\]/i.test(text)) {
-          const anchor = el.querySelector("a");
-          const href = anchor ? anchor.getAttribute("href") : "https://www.sfu.ca/continuing-studies.html";
-          let label = anchor ? anchor.textContent.replace(/\[button\]/i, "").trim() : text.replace(/\[button\]/i, "").trim();
-          if (!label) label = "View details";
-
-          let precedingContent = inner
-            .replace(new RegExp(`<a[^>]*href=["']?${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']?[^>]*>.*?<\\/a>`, "gi"), "")
-            .replace(/<a[^>]*>.*?\[button\].*?<\/a>/gi, "")
-            .replace(/\[button\]/gi, "")
-            .replace(/(<br\s*\/?>\s*)+$/gi, "")
-            .trim();
-
-          if (precedingContent) {
-            bodyHtml += `<p>${precedingContent}</p>\n\n`;
+        const btnData = parseButtonElement(el);
+        if (btnData) {
+          if (btnData.preceding) {
+            bodyHtml += "<p>" + convertBracketLinks(btnData.preceding).replace(/<br>/gi, "<br />") + "</p>\n\n";
           }
-
-          bodyHtml += `<p class="btn"><a class="btn" href="${href}">${label}</a></p>\n\n`;
+          bodyHtml += '<p class="btn"><a class="btn" href="' + btnData.href + '">' + btnData.label + '</a></p>\n\n';
           return;
         }
 
-        // Section headings
+        // Section Headings
         const isHeaderTag = /^h[1-3]$/i.test(el.tagName);
-        const isMajorSection = /^(more\s+[a-z0-9\s]+(courses|workshops)|upcoming\s+[a-z0-9\s]+)/i.test(text);
+        const isMajorSection = /^(more\s+[a-z0-9\s]+(courses|workshops)|upcoming\s+[a-z0-9\s]+|section\s+heading|section\s+with\s+list)/i.test(text);
 
         if ((isHeaderTag || isMajorSection) && !isDateOrTime(text) && !text.includes("Topic:")) {
           const cleanHeading = el.textContent.replace(/\s+/g, " ").trim();
-          bodyHtml += `<h2>${cleanHeading}</h2>\n\n`;
+          bodyHtml += "<h2>" + cleanHeading + "</h2>\n\n";
           return;
         }
 
-        // Event & Course cards
-        if (text.includes("Starts ") || text.includes("Begins ") || text.includes("Instructors:") || isDateOrTime(text) || text.includes("Topic:")) {
-          const tempDiv = document.createElement("div");
-          tempDiv.innerHTML = inner;
-
-          if ((isDateOrTime(text) || !tempDiv.querySelector("strong")) && !tempDiv.innerHTML.startsWith("<strong>")) {
-            tempDiv.innerHTML = tempDiv.innerHTML.replace(/^([^<]+?)(<br\s*\/?>|$)/i, "<strong>$1</strong>$2");
-          }
-
-          Array.from(tempDiv.querySelectorAll("a")).forEach(a => {
-            const href = a.getAttribute("href") || "";
-            if (href.includes("/instructors/") || a.parentElement?.textContent?.includes("Instructor")) {
-              if (!a.querySelector("strong") && !a.closest("strong")) {
-                a.innerHTML = `<strong>${a.innerHTML}</strong>`;
-              }
-            }
-          });
-
-          bodyHtml += `<p>${tempDiv.innerHTML.trim()}</p>\n\n`;
+        // Small Note handler (ONLY triggers if the paragraph has the Word 'Small Note' style)
+        if (el.classList.contains("smallnote")) {
+          let noteInner = convertBracketLinks(inner);
+          noteInner = noteInner.replace(/<strong([^>]*)>([\s\S]*?)<br\s*\/?>([\s\S]*?)<\/strong>/gi, "<strong$1>$2</strong><br /><strong$1>$3</strong>");
+          noteInner = noteInner.replace(/<strong>\s*<\/strong>/gi, "");
+          bodyHtml += '<p class="smallnote">' + noteInner.replace(/<br>/gi, "<br />") + '</p>\n\n';
           return;
         }
 
-        bodyHtml += `<p>${inner}</p>\n\n`;
+        // Event & Course Block detection
+        const isEventBlockStyle = el.classList.contains("event-block");
+        const hasBracketCourseStart = /^\s*(<strong>)?\s*\[\s*[^|\]]+?\s*\|\s*[^\]]+?\s*\]/i.test(inner);
+        const hasCourseKeywords = 
+          text.includes("Starts ") || 
+          text.includes("Begins ") || 
+          text.includes("Instructor:") || 
+          text.includes("Instructors:") || 
+          isDateOrTime(text) || 
+          text.includes("Topic:");
+
+        if (isEventBlockStyle || hasBracketCourseStart || hasCourseKeywords) {
+          const formattedCard = formatEventBlock(inner);
+          bodyHtml += "<p>" + formattedCard + "</p>\n\n";
+          return;
+        }
+
+        // Standard Paragraphs
+        let standardInner = convertBracketLinks(inner);
+        standardInner = standardInner.replace(/<strong([^>]*)>([\s\S]*?)<br\s*\/?>([\s\S]*?)<\/strong>/gi, "<strong$1>$2</strong><br /><strong$1>$3</strong>");
+        standardInner = standardInner.replace(/<strong>\s*<\/strong>/gi, "");
+
+        bodyHtml += "<p>" + standardInner.replace(/<br>/gi, "<br />") + "</p>\n\n";
       });
 
-      // Sign-off
       if (customGreeting) {
-        bodyHtml += `<p>${customGreeting}</p>\n\n`;
-        bodyHtml += `<p>\n\t${customSignature.join("<br />\n\t")}<br />\n</p>\n\n`;
+        bodyHtml += "<p>" + customGreeting + "</p>\n\n";
+        bodyHtml += "<p>\n\t" + customSignature.join("<br />\n\t") + "<br />\n</p>\n\n";
       } else {
-        bodyHtml += `<p>Kind regards,</p>\n\n`;
-        bodyHtml += `<p>\n\t<a href="https://www.sfu.ca/continuing-studies.html">SFU Continuing Studies</a><br />\n\t<a href="mailto:learn@sfu.ca">learn@sfu.ca</a><br />\n</p>\n\n`;
+        bodyHtml += "<p>Kind regards,</p>\n\n";
+        bodyHtml += "<p>\n\t<a href=\"https://www.sfu.ca/continuing-studies.html\">SFU Continuing Studies</a><br />\n\t<a href=\"mailto:learn@sfu.ca\">learn@sfu.ca</a><br />\n</p>\n\n";
       }
 
-      // Footnotes
       if (footnoteNodes.length > 0) {
         footnoteNodes.forEach(fn => {
           let cleanText = fn.innerHTML
@@ -509,7 +692,7 @@
             cleanText = cleanText.replace(/href="www\./gi, 'href="https://www.');
           }
 
-          bodyHtml += `<p style="font-size:0.8em;line-height:1.4;color:#666666;">${cleanText}</p>\n`;
+          bodyHtml += '<p style="font-size:0.8em;line-height:1.4;color:#666666;">' + cleanText + '</p>\n';
         });
       }
 
